@@ -29,10 +29,10 @@ def read_uploaded(file):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, header=5)
     else:
-        xls = pd.ExcelFile(file)
+        xlsx = pd.ExcelFile(file)
         all_sheets = []
-        for sheet_name in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet_name, header=5)
+        for sheet_name in xlsx.sheet_names:
+            df = pd.read_excel(xlsx, sheet_name=sheet_name, header=5)
             df['Sheet'] = sheet_name
             all_sheets.append(df)
         df = pd.concat(all_sheets, ignore_index=True)
@@ -45,6 +45,7 @@ if uploaded_files:
         df = read_uploaded(file)
 
         for _, row in df.iterrows():
+            print(df.columns.tolist())
             date = pd.to_datetime(row['年月日'], errors='coerce')
             if pd.isnull(date):
                 continue
