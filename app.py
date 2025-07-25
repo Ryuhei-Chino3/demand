@@ -45,7 +45,7 @@ if uploaded_files:
         df = read_uploaded(file)
 
         for _, row in df.iterrows():
-            date = pd.to_datetime(row['日付'], errors='coerce')
+            date = pd.to_datetime(row['年月日'], errors='coerce')
             if pd.isnull(date):
                 continue
 
