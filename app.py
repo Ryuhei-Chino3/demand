@@ -44,9 +44,29 @@ if uploaded_files:
     for file in uploaded_files:
         df = read_uploaded(file)
 
+        # 列名の表示（デバッグ用）
+        st.write("読み込んだ列名:", df.columns.tolist())
+
+        # 日付列の自動判定
+        date_col = None
+        for col in df.columns:
+            try:
+                # 最初の値を日付に変換してみる
+                pd.to_datetime(df[col].iloc[0], errors='raise')
+                date_col = col
+                break
+            except:
+                continue
+
+        if date_col is None:
+            st.error("日付列が見つかりません。正しい形式のデータをアップロードしてください。")
+            st.stop()
+
+        # 日付列を datetime に変換
+        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+
         for _, row in df.iterrows():
-            st.write("列名一覧:", df.columns.tolist())
-            date = pd.to_datetime(row['年月日'], errors='coerce')
+            date = row[date_col]
             if pd.isnull(date):
                 continue
 
@@ -55,6 +75,7 @@ if uploaded_files:
             key = 'holiday' if is_holiday(date) else 'weekday'
 
             for i in range(48):
+                # 時間帯列は2列目からスタート（index=1）
                 val = pd.to_numeric(row[i+1], errors='coerce')
                 if not pd.isnull(val):
                     monthly_data[key][month_index][i] += val
