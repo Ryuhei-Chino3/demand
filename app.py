@@ -42,61 +42,25 @@ if uploaded_files:
     monthly_data = init_monthly_data()
 
     for file in uploaded_files:
-        df = read_uploaded(file)
+    df = read_uploaded(file)  # ← dfがここで定義される
+    column_names = df.columns.tolist()  # ← ここで定義すればOK！
 
-        # 列名の表示（デバッグ用）
-        st.write("読み込んだ列名:", df.columns.tolist())
-
-        # 日付列の自動判定
-        date_col = None
-        for col in df.columns:
-            try:
-                # 最初の値を日付に変換してみる
-                pd.to_datetime(df[col].iloc[0], errors='raise')
-                date_col = col
-                break
-            except:
-                continue
-
-        if date_col is None:
-            st.error("日付列が見つかりません。正しい形式のデータをアップロードしてください。")
-            st.stop()
-
-        # 日付列を datetime に変換
-        df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-
-        for _, row in df.iterrows():
-            date = row[date_col]
-            if pd.isnull(date):
-                continue
-
-            mm = date.month
-            month_index = mm if mm >= 4 else mm + 12
-            key = 'holiday' if is_holiday(date) else 'weekday'
-
-            # 列名リストを取得（列順に基づいて処理する）
-column_names = df.columns.tolist()
-
-# 日付列名を特定（例：'年月日' または先頭の列名）
-date_col = column_names[0]  # 例: '2024/07/01' など
-
-for _, row in df.iterrows():
-    date = pd.to_datetime(row[date_col], errors='coerce')
-    if pd.isnull(date):
-        continue
-
-    mm = date.month
-    month_index = mm if mm >= 4 else mm + 12
-    key = 'holiday' if is_holiday(date) else 'weekday'
-
-    # 2列目以降の48個の列を処理
-    for i in range(1, 49):  # 1～48列目（0番目は日付）
-        if i >= len(column_names):  # 列が足りない場合はスキップ
+    for _, row in df.iterrows():
+        date = pd.to_datetime(row[column_names[0]], errors='coerce')
+        if pd.isnull(date):
             continue
-        colname = column_names[i]
-        val = pd.to_numeric(row[colname], errors='coerce')
-        if not pd.isnull(val):
-            monthly_data[key][month_index][i - 1] += val  # i-1が0～47のインデックス
+
+        mm = date.month
+        month_index = mm if mm >= 4 else mm + 12
+        key = 'holiday' if is_holiday(date) else 'weekday'
+
+        for i in range(1, 49):  # 1列目から48列目（0は日付）
+            if i >= len(column_names):
+                continue
+            colname = column_names[i]
+            val = pd.to_numeric(row[colname], errors='coerce')
+            if not pd.isnull(val):
+                monthly_data[key][month_index][i - 1] += val
 
 
     # 雛形読み込み
