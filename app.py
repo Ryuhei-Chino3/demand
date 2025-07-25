@@ -74,11 +74,30 @@ if uploaded_files:
             month_index = mm if mm >= 4 else mm + 12
             key = 'holiday' if is_holiday(date) else 'weekday'
 
-            for i in range(48):
-                # 時間帯列は2列目からスタート（index=1）
-                val = pd.to_numeric(row[i+1], errors='coerce')
-                if not pd.isnull(val):
-                    monthly_data[key][month_index][i] += val
+            # 列名リストを取得（列順に基づいて処理する）
+column_names = df.columns.tolist()
+
+# 日付列名を特定（例：'年月日' または先頭の列名）
+date_col = column_names[0]  # 例: '2024/07/01' など
+
+for _, row in df.iterrows():
+    date = pd.to_datetime(row[date_col], errors='coerce')
+    if pd.isnull(date):
+        continue
+
+    mm = date.month
+    month_index = mm if mm >= 4 else mm + 12
+    key = 'holiday' if is_holiday(date) else 'weekday'
+
+    # 2列目以降の48個の列を処理
+    for i in range(1, 49):  # 1～48列目（0番目は日付）
+        if i >= len(column_names):  # 列が足りない場合はスキップ
+            continue
+        colname = column_names[i]
+        val = pd.to_numeric(row[colname], errors='coerce')
+        if not pd.isnull(val):
+            monthly_data[key][month_index][i - 1] += val  # i-1が0～47のインデックス
+
 
     # 雛形読み込み
     wb = load_workbook(template_file)
