@@ -45,7 +45,7 @@ if uploaded_files:
         df = read_uploaded(file)
 
         for _, row in df.iterrows():
-            print(df.columns.tolist())
+            st.write("列名一覧:", df.columns.tolist())
             date = pd.to_datetime(row['年月日'], errors='coerce')
             if pd.isnull(date):
                 continue
