@@ -6,6 +6,7 @@ import datetime
 import io
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.writer.excel import save_virtual_workbook
 
 st.title("30分値 → 雛形フォーマット変換アプリ")
 
@@ -40,12 +41,22 @@ def read_uploaded(file):
         df = pd.concat(all_sheets, ignore_index=True)
     return df
 
-# メイン処理
 if uploaded_files and output_filename:
     monthly_data = init_monthly_data()
+    data_sheets = {}  # シート名: DataFrame
 
     for file in uploaded_files:
         df = read_uploaded(file)
+
+        # 最初の有効な日付を取得して年月シート名作成
+        df_dates = pd.to_datetime(df[0], errors='coerce')
+        valid_dates = df_dates.dropna()
+        if not valid_dates.empty:
+            month_str = valid_dates.iloc[0].strftime("%Y%m")
+        else:
+            month_str = "データ不明"
+
+        data_sheets[month_str] = df.copy()
 
         for _, row in df.iterrows():
             try:
@@ -80,6 +91,13 @@ if uploaded_files and output_filename:
         col_letter = get_column_letter(col_index + 1)
         for i in range(48):
             ws[f"{col_letter}{4 + i}"] = monthly_data['holiday'][m][i]
+
+    # 入力元データを別シートに追加
+    for sheet_name, data_df in data_sheets.items():
+        ws_data = wb.create_sheet(title=sheet_name)
+        for r_idx, row in data_df.iterrows():
+            for c_idx, val in enumerate(row):
+                ws_data.cell(row=r_idx + 1, column=c_idx + 1, value=val)
 
     output = io.BytesIO()
     wb.save(output)
