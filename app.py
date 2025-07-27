@@ -9,22 +9,24 @@ from openpyxl.utils import get_column_letter
 
 st.title("30分値 → 雛形フォーマット変換アプリ")
 
+# 出力ファイル名入力（必須）
+output_filename = st.text_input("出力ファイル名（拡張子 .xlsx は自動で付きます）", value="", help="例: catsapporo_202406")
+if not output_filename:
+    st.warning("出力ファイル名を入力してください。")
+
 uploaded_files = st.file_uploader("ファイルをアップロード（複数可）", type=['xlsx', 'csv'], accept_multiple_files=True)
 
 template_file = "雛形_伊藤忠.xlsx"
 
-# 土日・祝日判定
 def is_holiday(date):
     return date.weekday() >= 5 or jpholiday.is_holiday(date)
 
-# 月別データ初期化
 def init_monthly_data():
     return {
         'weekday': {month: [0]*48 for month in range(4, 16)},
         'holiday': {month: [0]*48 for month in range(4, 16)}
     }
 
-# 入力ファイル読み込み
 def read_uploaded(file):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, skiprows=5, header=None)
@@ -38,7 +40,8 @@ def read_uploaded(file):
         df = pd.concat(all_sheets, ignore_index=True)
     return df
 
-if uploaded_files:
+# メイン処理
+if uploaded_files and output_filename:
     monthly_data = init_monthly_data()
 
     for file in uploaded_files:
@@ -54,37 +57,4 @@ if uploaded_files:
                 month_index = mm if mm >= 4 else mm + 12
                 key = 'holiday' if is_holiday(date) else 'weekday'
 
-                for i in range(48):
-                    val = pd.to_numeric(row[i + 1], errors='coerce')
-                    if not pd.isnull(val):
-                        monthly_data[key][month_index][i] += val
-            except Exception as e:
-                continue
-
-    wb = load_workbook(template_file)
-    ws = wb["コマ単位集計雛形（送電端）"]
-
-    # 平日：6月→E列（5列目）, 7月→F列（6列目）
-    for m in range(6, 8):
-        col_index = 4 + (m - 6)  # 6月→E=5, 7月→F=6
-        col_letter = get_column_letter(col_index + 1)
-        for i in range(48):
-            ws[f"{col_letter}{4 + i}"] = monthly_data['weekday'][m][i]
-
-    # 休日：6月→S列（19列目）, 7月→T列（20列目）
-    for m in range(6, 8):
-        col_index = 18 + (m - 6)
-        col_letter = get_column_letter(col_index + 1)
-        for i in range(48):
-            ws[f"{col_letter}{4 + i}"] = monthly_data['holiday'][m][i]
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    st.download_button(
-        label="📥 処理済みExcelをダウンロード",
-        data=output,
-        file_name="output_koma_format.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+                for
