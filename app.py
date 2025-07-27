@@ -6,31 +6,39 @@ import datetime
 import calendar
 import io
 from openpyxl import load_workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
+from copy import deepcopy
 
 st.title("30分値 → 雛形フォーマット変換アプリ")
 
 uploaded_files = st.file_uploader("ファイルをアップロード（複数可）", type=['xlsx', 'csv'], accept_multiple_files=True)
 
-output_filename = st.text_input("出力ファイル名（拡張子は不要）", value="", help="必須項目です。例: 202406_キャッツアイ")
-
+output_name = st.text_input("出力ファイル名（拡張子不要）", value="", help="例：cats_202406 ※必須")
 template_file = "雛形_伊藤忠.xlsx"
+
+# ファイル名必須
+if uploaded_files and output_name.strip() == "":
+    st.warning("出力ファイル名を入力してください。")
+    st.stop()
 
 # 曜日判定
 def is_holiday(date):
     return date.weekday() >= 5 or jpholiday.is_holiday(date)
 
-# 空の月別データ構造
+# 空の月別データ構造を作成（4月〜翌年3月）
 def init_monthly_data():
     return {
         'weekday': {month: [0]*48 for month in range(4, 16)},
         'holiday': {month: [0]*48 for month in range(4, 16)}
     }
 
-# ファイル読み込み（5行目以降をDataFrameに）
+# アップロードファイル読み込み関数
 def read_uploaded(file):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, header=5)
+        df['Sheet'] = file.name
+        return [df]
     else:
         xlsx = pd.ExcelFile(file)
         all_sheets = []
@@ -38,69 +46,64 @@ def read_uploaded(file):
             df = pd.read_excel(xlsx, sheet_name=sheet_name, header=5)
             df['Sheet'] = sheet_name
             all_sheets.append(df)
-        df = pd.concat(all_sheets, ignore_index=True)
-    return df
+        return all_sheets
 
-if uploaded_files and output_filename.strip():
+# データ出力処理
+if uploaded_files:
     monthly_data = init_monthly_data()
-
-    # 雛形読み込み
     wb = load_workbook(template_file)
-    ws = wb["コマ単位集計雛形（送電端）"]
+    ws_template: Worksheet = wb["コマ単位集計雛形（送電端）"]
 
     for file in uploaded_files:
-        df = read_uploaded(file)
-
-        column_names = df.columns.tolist()
-
-        for _, row in df.iterrows():
-            date = pd.to_datetime(row[column_names[0]], errors='coerce')
-            if pd.isnull(date):
+        dataframes = read_uploaded(file)
+        for df in dataframes:
+            if df.empty:
                 continue
 
-            mm = date.month
-            month_index = mm if mm >= 4 else mm + 12
-            key = 'holiday' if is_holiday(date) else 'weekday'
+            df_columns = df.columns.tolist()
 
-            for i in range(1, 49):  # 1列目から48列目（0は日付）
-                if i >= len(column_names):
+            for _, row in df.iterrows():
+                date = pd.to_datetime(row[df_columns[0]], errors='coerce')
+                if pd.isnull(date):
                     continue
-                colname = column_names[i]
-                val = pd.to_numeric(row[colname], errors='coerce')
-                if not pd.isnull(val):
-                    monthly_data[key][month_index][i - 1] += val
 
-        # 入力元データを別シートに出力（5行目以降）
-        xlsx = pd.ExcelFile(file)
-        for sheet_name in xlsx.sheet_names:
-            df_sheet = pd.read_excel(xlsx, sheet_name=sheet_name, header=4)  # 5行目＝index=4から読み込む
-            # シート名生成
-            first_date = pd.to_datetime(df_sheet.iloc[0, 0], errors='coerce')
-            if pd.isnull(first_date):
-                continue
-            ym_str = first_date.strftime('%Y%m')
-            ws_data = wb.create_sheet(title=ym_str)
+                mm = date.month
+                month_index = mm if mm >= 4 else mm + 12
+                key = 'holiday' if is_holiday(date) else 'weekday'
 
-            for row in dataframe_to_rows(df_sheet, index=False, header=True):
-                ws_data.append(row)
+                for i in range(1, 49):  # 1列目から48列目（0は日付）
+                    if i >= len(df_columns):
+                        continue
+                    colname = df_columns[i]
+                    val = pd.to_numeric(row[colname], errors='coerce')
+                    if not pd.isnull(val):
+                        monthly_data[key][month_index][i - 1] += val
 
-    # 平日エリア：E列〜P列（4〜15月 → E〜P）
+            # シート追加：5行目以降をそのまま別シートへ
+            month_str = pd.to_datetime(df[df_columns[0]].dropna().iloc[0]).strftime("%Y%m")
+            df_with_header = pd.read_excel(file, sheet_name=df['Sheet'].iloc[0], header=None)
+            sheet_name = month_str
+            if sheet_name in wb.sheetnames:
+                del wb[sheet_name]
+            ws_data = wb.create_sheet(title=sheet_name)
+            for r in df_with_header.itertuples(index=False):
+                ws_data.append(r)
+
+    # 平日データをE列〜P列（6〜15月）
     for m in range(4, 16):
-        col_offset = m - 4  # 0〜11
-        col_base = ord('E') + col_offset
-        col_letter = chr(col_base)
+        col_idx = m - 1  # E列=5=4+1
+        col_letter = get_column_letter(col_idx + 1)
         for i in range(48):
-            ws[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
+            ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
 
-    # 休日エリア：S列〜AD列（4〜15月 → S〜AD）
+    # 休日データをS列〜AD列（6〜15月）
     for m in range(4, 16):
-        col_offset = m - 4
-        col_base = ord('S') + col_offset
-        col_letter = chr(col_base)
+        col_idx = 18 + (m - 4)  # S列=19
+        col_letter = get_column_letter(col_idx)
         for i in range(48):
-            ws[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
+            ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
 
-    # 出力
+    # 出力ファイル作成
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -108,9 +111,6 @@ if uploaded_files and output_filename.strip():
     st.download_button(
         label="📥 処理済みExcelをダウンロード",
         data=output,
-        file_name=output_filename.strip() + ".xlsx",
+        file_name=output_name.strip() + ".xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-else:
-    if uploaded_files and not output_filename.strip():
-        st.warning("出力ファイル名を入力してください。")
