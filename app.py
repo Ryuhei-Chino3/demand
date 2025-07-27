@@ -10,17 +10,15 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from copy import deepcopy
 
-st.title("30分値 → 雛形フォーマット変換アプリ")
+st.title("伊藤忠フォーマット変換アプリ")
 
 uploaded_files = st.file_uploader("ファイルをアップロード（複数可）", type=['xlsx', 'csv'], accept_multiple_files=True)
 
 output_name = st.text_input("出力ファイル名（拡張子不要）", value="", help="例：cats_202406 ※必須")
-template_file = "雛形_伊藤忠.xlsx"
 
-# ファイル名必須
-if uploaded_files and output_name.strip() == "":
-    st.warning("出力ファイル名を入力してください。")
-    st.stop()
+run_button = st.button("✅ 実行")
+
+template_file = "雛形_伊藤忠.xlsx"
 
 # 曜日判定
 def is_holiday(date):
@@ -48,8 +46,16 @@ def read_uploaded(file):
             all_sheets.append(df)
         return all_sheets
 
-# データ出力処理
-if uploaded_files:
+# 実行ボタン押されたときのみ処理実行
+if run_button:
+    if not uploaded_files:
+        st.warning("ファイルをアップロードしてください。")
+        st.stop()
+
+    if output_name.strip() == "":
+        st.warning("出力ファイル名を入力してください。")
+        st.stop()
+
     monthly_data = init_monthly_data()
     wb = load_workbook(template_file)
     ws_template: Worksheet = wb["コマ単位集計雛形（送電端）"]
@@ -108,6 +114,7 @@ if uploaded_files:
     wb.save(output)
     output.seek(0)
 
+    st.success("変換が完了しました！")
     st.download_button(
         label="📥 処理済みExcelをダウンロード",
         data=output,
