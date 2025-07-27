@@ -6,7 +6,6 @@ import datetime
 import io
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from openpyxl.writer.excel import save_virtual_workbook
 
 st.title("30分値 → 雛形フォーマット変換アプリ")
 
