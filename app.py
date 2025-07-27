@@ -57,4 +57,37 @@ if uploaded_files and output_filename:
                 month_index = mm if mm >= 4 else mm + 12
                 key = 'holiday' if is_holiday(date) else 'weekday'
 
-                for
+                for i in range(48):
+                    val = pd.to_numeric(row[i + 1], errors='coerce')
+                    if not pd.isnull(val):
+                        monthly_data[key][month_index][i] += val
+            except Exception:
+                continue
+
+    wb = load_workbook(template_file)
+    ws = wb["コマ単位集計雛形（送電端）"]
+
+    # 平日（6月→E列, 7月→F列）
+    for m in range(6, 8):
+        col_index = 4 + (m - 6)
+        col_letter = get_column_letter(col_index + 1)
+        for i in range(48):
+            ws[f"{col_letter}{4 + i}"] = monthly_data['weekday'][m][i]
+
+    # 休日（6月→S列, 7月→T列）
+    for m in range(6, 8):
+        col_index = 18 + (m - 6)
+        col_letter = get_column_letter(col_index + 1)
+        for i in range(48):
+            ws[f"{col_letter}{4 + i}"] = monthly_data['holiday'][m][i]
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    st.download_button(
+        label="📥 処理済みExcelをダウンロード",
+        data=output,
+        file_name=f"{output_filename}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
