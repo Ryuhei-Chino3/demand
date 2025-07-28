@@ -29,7 +29,6 @@ def init_monthly_data():
         'holiday_days': {month: 0 for month in range(4, 16)}
     }
 
-# 修正ポイント：6行目以降を実データとして読み込む
 def read_uploaded(file):
     if file.name.endswith('.csv'):
         df_full = pd.read_csv(file, header=None)
@@ -116,10 +115,9 @@ if run_button:
                     continue
                 colname = df_columns[i]
                 val = pd.to_numeric(row[colname], errors='coerce')
-                if not pd.isnull(val):
+                if np.isscalar(val) and not pd.isnull(val):
                     monthly_data[key][month_index][i - 1] += val
 
-        # 元データ貼付用（全行そのまま貼る）
         df_with_header = pd.read_excel(file, sheet_name=sheet_name, header=None)
         output_sheet_name = info["date"].strftime("%Y%m")
         if output_sheet_name in wb.sheetnames:
@@ -128,7 +126,6 @@ if run_button:
         for r in df_with_header.itertuples(index=False):
             ws_data.append(r)
 
-    # 平日データ書き込み（C〜N列 + 日数）
     for m in range(4, 16):
         col_idx = m - 1
         col_letter = get_column_letter(col_idx)
@@ -136,7 +133,6 @@ if run_button:
             ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
         ws_template[f"{col_letter}57"] = monthly_data['weekday_days'][m]
 
-    # 休日データ書き込み（Q〜AB列 + 日数）
     for m in range(4, 16):
         col_idx = 17 + (m - 4)
         col_letter = get_column_letter(col_idx)
