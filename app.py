@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from copy import deepcopy
 
-st.title("伊藤忠フォーマット変換アプリ")
+st.title("30分値 → 雛形フォーマット変換アプリ")
 
 uploaded_files = st.file_uploader("ファイルをアップロード（複数可）", type=['xlsx', 'csv'], accept_multiple_files=True)
 
@@ -95,16 +95,16 @@ if run_button:
             for r in df_with_header.itertuples(index=False):
                 ws_data.append(r)
 
-    # 平日データをE列〜P列（6〜15月）
+    # ✅ 平日データ → C〜N列（3〜14列）
     for m in range(4, 16):
-        col_idx = m - 1  # E列=5=4+1
-        col_letter = get_column_letter(col_idx + 1)
+        col_idx = m - 1  # 月→列: 4月→3, ..., 翌年3月→14
+        col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
 
-    # 休日データをS列〜AD列（6〜15月）
+    # ✅ 休日データ → Q〜AB列（17〜30列）
     for m in range(4, 16):
-        col_idx = 18 + (m - 4)  # S列=19
+        col_idx = 13 + (m - 4)  # 4月→17(Q), ..., 翌年3月→30(AB)
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
