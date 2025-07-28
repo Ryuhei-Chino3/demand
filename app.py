@@ -36,14 +36,14 @@ def init_monthly_data():
 # アップロードファイル読み込み関数
 def read_uploaded(file):
     if file.name.endswith('.csv'):
-        df = pd.read_csv(file, header=5)
+        df = pd.read_csv(file, header=4)
         df['Sheet'] = file.name
         return [df]
     else:
         xlsx = pd.ExcelFile(file)
         all_sheets = []
         for sheet_name in xlsx.sheet_names:
-            df = pd.read_excel(xlsx, sheet_name=sheet_name, header=5)
+            df = pd.read_excel(xlsx, sheet_name=sheet_name, header=4)
             df['Sheet'] = sheet_name
             all_sheets.append(df)
         return all_sheets
