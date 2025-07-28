@@ -140,7 +140,7 @@ if run_button:
 
     # ✅ 休日データ → Q〜AB列（17〜28列） + Q57〜AB57に日数
     for m in range(4, 16):
-        col_idx = 16 + (m - 4)  # Q=17（4月）
+        col_idx = 17 + (m - 4)  # Q=17（4月）
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
