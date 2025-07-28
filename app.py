@@ -77,16 +77,16 @@ if run_button:
             if valid_dates.empty:
                 continue
 
-            last_date = valid_dates.max()
-            month_key = last_date.year * 100 + last_date.month  # 例：202406
+            first_date = valid_dates.iloc[0]
+            month_key = first_date.month if first_date.month >= 4 else first_date.month + 12
 
             # 月単位で最新のデータフレームだけを保持
-            if (month_key not in latest_month_map) or (last_date > latest_month_map[month_key]["date"]):
+            if (month_key not in latest_month_map) or (first_date > latest_month_map[month_key]["date"]):
                 latest_month_map[month_key] = {
                     "df": df,
                     "file": file,
                     "sheet": df['Sheet'].iloc[0],
-                    "date": last_date
+                    "date": first_date
                 }
 
     # 月ごとに1件ずつ処理
@@ -96,8 +96,7 @@ if run_button:
         sheet_name = info["sheet"]
 
         df_columns = df.columns.tolist()
-        used_dates_weekday = set()
-        used_dates_holiday = set()
+        used_dates = set()
 
         for _, row in df.iterrows():
             date = pd.to_datetime(row[df_columns[0]], errors='coerce')
@@ -107,9 +106,8 @@ if run_button:
             mm = date.month
             month_index = mm if mm >= 4 else mm + 12
             key = 'holiday' if is_holiday(date) else 'weekday'
-            used_dates = used_dates_holiday if key == 'holiday' else used_dates_weekday
 
-            # 日数カウントは1日1回のみ（平日・休日別）
+            # 日数カウントは1日1回のみ（重複排除）
             date_str = date.strftime("%Y-%m-%d")
             if date_str not in used_dates:
                 monthly_data[key + '_days'][month_index] += 1
@@ -142,7 +140,7 @@ if run_button:
 
     # ✅ 休日データ → Q〜AB列（17〜28列） + Q57〜AB57に日数
     for m in range(4, 16):
-        col_idx = 13 + (m - 4)  # Q=17列目 = 13+4
+        col_idx = 16 + (m - 4)  # Q=17（4月）
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
