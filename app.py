@@ -29,10 +29,33 @@ if execute:
         ws = wb.active
         ws.title = "コマ単位集計雛形（送電端）"
         
-        # 雛形の構造をコピー
+        # 雛形の構造と書式を完全にコピー
         for row in template_ws.iter_rows():
             for cell in row:
-                ws[cell.coordinate] = cell.value
+                new_cell = ws[cell.coordinate]
+                new_cell.value = cell.value
+                
+                # 書式をコピー
+                if cell.font:
+                    new_cell.font = cell.font
+                if cell.border:
+                    new_cell.border = cell.border
+                if cell.fill:
+                    new_cell.fill = cell.fill
+                if cell.number_format:
+                    new_cell.number_format = cell.number_format
+                if cell.alignment:
+                    new_cell.alignment = cell.alignment
+        
+        # 列幅と行高をコピー
+        for col in range(1, template_ws.max_column + 1):
+            col_letter = get_column_letter(col)
+            if template_ws.column_dimensions[col_letter].width:
+                ws.column_dimensions[col_letter].width = template_ws.column_dimensions[col_letter].width
+        
+        for row in range(1, template_ws.max_row + 1):
+            if template_ws.row_dimensions[row].height:
+                ws.row_dimensions[row].height = template_ws.row_dimensions[row].height
         
         # 30分間隔の時間リストを作成
         time_slots = []
@@ -189,6 +212,16 @@ if execute:
                     if month in monthly_data['holiday']:
                         value = monthly_data['holiday'][month].get(time_slot, 0)
                         ws.cell(row=row_idx, column=col_idx, value=value)
+
+            # 入力ファイルのデータを別シートに保存
+            month_label = df['datetime'].dt.strftime('%Y%m').iloc[0]
+            sheet_name = f"{os.path.splitext(uploaded_file.name)[0]}_{month_label}"
+            sheet = wb.create_sheet(title=sheet_name)
+            
+            # 元のデータをそのままコピー
+            for i, row in enumerate(df_raw.values.tolist()):
+                for j, value in enumerate(row):
+                    sheet.cell(row=i+1, column=j+1, value=value)
 
         # ダウンロード用にバッファへ保存
         output = BytesIO()
