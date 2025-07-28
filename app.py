@@ -104,10 +104,11 @@ if run_button:
 
     # ✅ 休日データ → Q〜AB列（17〜28列）
     for m in range(4, 16):
-        col_idx = 13 + (m - 4)  # 4月→17(Q), ..., 翌年3月→28(AB)
+        col_idx = 16 + (m - 4)  # 修正: 4月→17(Q), ..., 翌年3月→28(AB)
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
+
 
     # 出力ファイル作成
     output = io.BytesIO()
