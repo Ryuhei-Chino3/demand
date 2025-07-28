@@ -7,8 +7,8 @@ from io import BytesIO
 import calendar
 import os
 
-st.set_page_config(page_title="30分値集計アプリ", layout="wide")
-st.title("30分値 平日・休日 月別集計アプリ")
+st.set_page_config(page_title="フォーマット変換アプリ", layout="wide")
+st.title("伊藤忠フォーマット変換アプリ")
 
 uploaded_files = st.file_uploader("30分値のExcelまたはCSVファイルをアップロード", type=["xlsx", "csv"], accept_multiple_files=True)
 output_filename = st.text_input("出力ファイル名（拡張子 .xlsx は不要）", value="")
