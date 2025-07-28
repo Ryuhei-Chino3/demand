@@ -20,20 +20,20 @@ run_button = st.button("✅ 実行")
 
 template_file = "雛形_伊藤忠.xlsx"
 
-# 休日判定
+# 曜日判定
 def is_holiday(date):
     return date.weekday() >= 5 or jpholiday.is_holiday(date)
 
-# 月別初期データ
+# 空の月別データ構造を作成（4月〜翌年3月）
 def init_monthly_data():
     return {
-        'weekday': {m: [0]*48 for m in range(4, 16)},
-        'holiday': {m: [0]*48 for m in range(4, 16)},
-        'weekday_days': {m: 0 for m in range(4, 16)},
-        'holiday_days': {m: 0 for m in range(4, 16)}
+        'weekday': {month: [0]*48 for month in range(4, 16)},
+        'holiday': {month: [0]*48 for month in range(4, 16)},
+        'weekday_days': {month: 0 for month in range(4, 16)},
+        'holiday_days': {month: 0 for month in range(4, 16)}
     }
 
-# ファイル読み込み（CSVまたはXLSX）
+# アップロードファイル読み込み関数
 def read_uploaded(file):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, header=5)
@@ -41,8 +41,14 @@ def read_uploaded(file):
         return [df]
     else:
         xlsx = pd.ExcelFile(file)
-        return [pd.read_excel(xlsx, sheet_name=sheet, header=5).assign(Sheet=sheet) for sheet in xlsx.sheet_names]
+        all_sheets = []
+        for sheet_name in xlsx.sheet_names:
+            df = pd.read_excel(xlsx, sheet_name=sheet_name, header=5)
+            df['Sheet'] = sheet_name
+            all_sheets.append(df)
+        return all_sheets
 
+# 実行ボタン押されたときのみ処理実行
 if run_button:
     if not uploaded_files:
         st.warning("ファイルをアップロードしてください。")
@@ -53,7 +59,7 @@ if run_button:
         st.stop()
 
     monthly_data = init_monthly_data()
-    latest_month_map = {}
+    latest_month_map = {}  # 各月ごとに最新のデータフレームを保持
 
     wb = load_workbook(template_file)
     ws_template: Worksheet = wb["コマ単位集計雛形（送電端）"]
@@ -67,12 +73,14 @@ if run_button:
             df_columns = df.columns.tolist()
             dates = pd.to_datetime(df[df_columns[0]], errors='coerce')
             valid_dates = dates.dropna()
+
             if valid_dates.empty:
                 continue
 
             first_date = valid_dates.iloc[0]
-            month_key = first_date.year * 100 + first_date.month  # 年月で一意に判定
+            month_key = first_date.year * 100 + first_date.month  # 例：202406
 
+            # 月単位で最新のデータフレームだけを保持
             if (month_key not in latest_month_map) or (first_date > latest_month_map[month_key]["date"]):
                 latest_month_map[month_key] = {
                     "df": df,
@@ -81,13 +89,15 @@ if run_button:
                     "date": first_date
                 }
 
+    # 月ごとに1件ずつ処理
     for m_key, info in latest_month_map.items():
         df = info["df"]
         file = info["file"]
         sheet_name = info["sheet"]
 
         df_columns = df.columns.tolist()
-        used_dates = {'weekday': set(), 'holiday': set()}
+        used_dates_weekday = set()
+        used_dates_holiday = set()
 
         for _, row in df.iterrows():
             date = pd.to_datetime(row[df_columns[0]], errors='coerce')
@@ -95,47 +105,51 @@ if run_button:
                 continue
 
             mm = date.month
-            month_index = mm if mm >= 4 else mm + 12
+            m_idx = mm if mm >= 4 else mm + 12
             key = 'holiday' if is_holiday(date) else 'weekday'
 
+            # 日数カウント（同一日で複数行あっても1回だけカウント）
             date_str = date.strftime("%Y-%m-%d")
-            if date_str not in used_dates[key]:
-                monthly_data[key + '_days'][month_index] += 1
-                used_dates[key].add(date_str)
+            if key == 'weekday' and date_str not in used_dates_weekday:
+                monthly_data['weekday_days'][m_idx] += 1
+                used_dates_weekday.add(date_str)
+            elif key == 'holiday' and date_str not in used_dates_holiday:
+                monthly_data['holiday_days'][m_idx] += 1
+                used_dates_holiday.add(date_str)
 
             for i in range(1, 49):
                 if i >= len(df_columns):
                     continue
                 val = pd.to_numeric(row[df_columns[i]], errors='coerce')
                 if not pd.isnull(val):
-                    monthly_data[key][month_index][i - 1] += val
+                    monthly_data[key][m_idx][i - 1] += val
 
-        # 元データシート追加
+        # シート追加（元データ）
         df_with_header = pd.read_excel(file, sheet_name=sheet_name, header=None)
-        sheet_title = info["date"].strftime("%Y%m")
-        if sheet_title in wb.sheetnames:
-            del wb[sheet_title]
-        ws_data = wb.create_sheet(title=sheet_title)
+        output_sheet_name = info["date"].strftime("%Y%m")
+        if output_sheet_name in wb.sheetnames:
+            del wb[output_sheet_name]
+        ws_data = wb.create_sheet(title=output_sheet_name)
         for r in df_with_header.itertuples(index=False):
             ws_data.append(r)
 
-    # ✅ 平日：C〜N列 & C57〜N57（日数）
+    # ✅ 平日データ → C〜N列（3〜14列） + C57〜N57に日数
     for m in range(4, 16):
-        col_idx = m - 1  # C=3（4月）
+        col_idx = m - 1  # 4月→3列目（C）
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
         ws_template[f"{col_letter}57"] = monthly_data['weekday_days'][m]
 
-    # ✅ 休日：Q〜AB列 & Q57〜AB57（日数）
+    # ✅ 休日データ → Q〜AB列（17〜28列） + Q57〜AB57に日数
     for m in range(4, 16):
-        col_idx = 17 + (m - 4)  # Q=17（4月）
+        col_idx = 17 + (m - 4)  # 4月→17列目（Q）
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
         ws_template[f"{col_letter}57"] = monthly_data['holiday_days'][m]
 
-    # 出力
+    # 出力ファイル作成
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
