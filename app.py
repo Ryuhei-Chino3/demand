@@ -5,7 +5,7 @@ from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from io import BytesIO
-import holidays
+import jpholiday
 
 # --- 日本の祝日判定 ---
 jp_holidays = holidays.Japan()
