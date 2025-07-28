@@ -20,12 +20,33 @@ if execute:
     elif not output_filename.strip():
         st.warning("出力ファイル名を入力してください。")
     else:
+        # 雛形ファイルを読み込み
+        template_wb = openpyxl.load_workbook('雛形_伊藤忠.xlsx')
+        template_ws = template_wb['コマ単位集計雛形（送電端）']
+        
+        # 新しいワークブックを作成
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "集計結果"
-
-        # ヘッダー行
-        ws.append(["区分", "契約容量(kW)"] + [f"{month}月 平日" for month in range(1, 13)] + [f"{month}月 休日" for month in range(1, 13)])
+        ws.title = "コマ単位集計雛形（送電端）"
+        
+        # 雛形の構造をコピー
+        for row in template_ws.iter_rows():
+            for cell in row:
+                ws[cell.coordinate] = cell.value
+        
+        # 30分間隔の時間リストを作成
+        time_slots = []
+        for hour in range(24):
+            for minute in [0, 30]:
+                start_time = f"{hour:02d}:{minute:02d}"
+                if minute == 30:
+                    end_hour = hour
+                    end_minute = 0
+                else:
+                    end_hour = hour
+                    end_minute = 30
+                end_time = f"{end_hour:02d}:{end_minute:02d}"
+                time_slots.append(f"{start_time}-{end_time}")
 
         for uploaded_file in uploaded_files:
             # ファイル読み込み
@@ -120,33 +141,54 @@ if execute:
             df['month'] = df['datetime'].dt.month
             df['weekday'] = df['datetime'].dt.weekday
             df['is_holiday'] = df['weekday'] >= 5
+            df['time_slot'] = df['datetime'].dt.strftime('%H:%M')
 
-            # 月ごとの平日・休日集計
+            # 月ごとの平日・休日集計（30分単位）
             monthly_data = {'weekday': {}, 'holiday': {}}
+            
             for m in range(1, 13):
                 df_m = df[df['month'] == m]
+                
                 for kind, label in [(False, 'weekday'), (True, 'holiday')]:
-                    usage_sum = df_m[df_m['is_holiday'] == kind].groupby(df_m['datetime'].dt.time)['usage'].sum()
-                    if not usage_sum.empty:
-                        monthly_data[label][m] = usage_sum.reindex(pd.date_range("00:00", "23:30", freq="30min").time, fill_value=0).tolist()
+                    df_kind = df_m[df_m['is_holiday'] == kind]
+                    
+                    if not df_kind.empty:
+                        # 30分単位で集計
+                        usage_by_time = df_kind.groupby('time_slot')['usage'].sum()
+                        
+                        # 48個の30分スロットに値を設定
+                        time_data = {}
+                        for time_slot in time_slots:
+                            start_time = time_slot.split('-')[0]
+                            if start_time in usage_by_time.index:
+                                time_data[time_slot] = usage_by_time[start_time]
+                            else:
+                                time_data[time_slot] = 0
+                        
+                        monthly_data[label][m] = time_data
                     else:
-                        monthly_data[label][m] = [0]*48
+                        monthly_data[label][m] = {time_slot: 0 for time_slot in time_slots}
 
-            # 出力行作成
-            name = os.path.splitext(uploaded_file.name)[0]
-            contract_capacity = 18  # 仮設定、必要に応じて取得方法を変える
-            row = [name, contract_capacity]
-            for m in range(1, 13):
-                row.append(sum(monthly_data['weekday'].get(m, [0]*48)))
-            for m in range(1, 13):
-                row.append(sum(monthly_data['holiday'].get(m, [0]*48)))
-            ws.append(row)
-
-            # 入力シートもコピー
-            month_label = df['datetime'].dt.strftime('%Y%m').iloc[0]
-            sheet = wb.create_sheet(title=month_label)
-            for i, row in enumerate(df_raw.values.tolist()):
-                sheet.append(row)
+            # 伊藤忠フォーマットにデータを挿入
+            # 平日データを挿入
+            for i, time_slot in enumerate(time_slots):
+                row_idx = i + 3  # 3行目から開始
+                
+                for month in range(1, 13):
+                    col_idx = month + 1  # 2列目から開始（1列目は時間）
+                    if month in monthly_data['weekday']:
+                        value = monthly_data['weekday'][month].get(time_slot, 0)
+                        ws.cell(row=row_idx, column=col_idx, value=value)
+            
+            # 休日データを挿入（16列目から開始）
+            for i, time_slot in enumerate(time_slots):
+                row_idx = i + 3  # 3行目から開始
+                
+                for month in range(1, 13):
+                    col_idx = month + 15  # 16列目から開始
+                    if month in monthly_data['holiday']:
+                        value = monthly_data['holiday'][month].get(time_slot, 0)
+                        ws.cell(row=row_idx, column=col_idx, value=value)
 
         # ダウンロード用にバッファへ保存
         output = BytesIO()
