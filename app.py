@@ -102,14 +102,9 @@ if run_button:
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
 
-    # ✅ 休日データ → Q〜AB列（17〜30列）
-    used_holiday_months = {
-        m for m in monthly_data['holiday']
-        if any(val != 0 for val in monthly_data['holiday'][m])
-    }
-
-    for m in used_holiday_months:
-        col_idx = 13 + (m - 4)  # 4月→17(Q), ..., 翌年3月→30(AB)
+    # ✅ 休日データ → Q〜AB列（17〜28列）
+    for m in range(4, 16):
+        col_idx = 13 + (m - 4)  # 4月→17(Q), ..., 翌年3月→28(AB)
         col_letter = get_column_letter(col_idx)
         for i in range(48):
             ws_template[f"{col_letter}{4+i}"] = monthly_data['holiday'][m][i]
