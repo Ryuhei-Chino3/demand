@@ -48,7 +48,7 @@ if st.session_state.uploaded_files:
 
 # クリアボタン
 if st.button("アップロードファイルを一括クリア"):
-    st.session_state.clear_files = True
+    st.session_state["clear_files"] = True
 
 if st.session_state.get("clear_files"):
     st.session_state.pop("uploaded_files", None)
