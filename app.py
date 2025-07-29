@@ -50,10 +50,11 @@ if st.session_state.uploaded_files:
 if st.button("アップロードファイルを一括クリア"):
     st.session_state["clear_files"] = True
 
-if st.session_state.get("clear_files"):
+if st.session_state.get("clear_files", False):
     st.session_state.pop("uploaded_files", None)
-    st.session_state.pop("clear_files", None)
+    st.session_state["clear_files"] = False
     st.experimental_rerun()
+
 
 output_name = st.text_input("出力ファイル名（拡張子不要）", value="", help="例：cats_202406 ※必須")
 
