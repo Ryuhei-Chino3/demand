@@ -41,23 +41,7 @@ if uploaded:
         if not exists:
             st.session_state.uploaded_files.append(f)
 
-# アップロード済みファイル一覧表示
-if st.session_state.uploaded_files:
-    st.write("アップロード済みファイル:")
-    for f in st.session_state.uploaded_files:
-        st.write(f.name)
 
-# クリアボタン
-if st.button("アップロードファイルを一括クリア"):
-    st.session_state["clear_files"] = True
-
-if st.session_state.get("clear_files", False):
-    st.session_state.pop("uploaded_files", None)
-    st.session_state["clear_files"] = False
-    try:
-        st.experimental_rerun()
-    except Exception as e:
-        st.error(f"リロード処理でエラーが発生しました: {e}")
 
 
 output_name = st.text_input("出力ファイル名（拡張子不要）", value="", help="例：cats_202406 ※必須")
