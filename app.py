@@ -53,7 +53,10 @@ if st.button("アップロードファイルを一括クリア"):
 if st.session_state.get("clear_files", False):
     st.session_state.pop("uploaded_files", None)
     st.session_state["clear_files"] = False
-    st.experimental_rerun()
+    try:
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f"リロード処理でエラーが発生しました: {e}")
 
 
 output_name = st.text_input("出力ファイル名（拡張子不要）", value="", help="例：cats_202406 ※必須")
