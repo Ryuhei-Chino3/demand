@@ -1,4 +1,5 @@
 import streamlit as st
+st.write(st.__version__)
 import pandas as pd
 import numpy as np
 import jpholiday
