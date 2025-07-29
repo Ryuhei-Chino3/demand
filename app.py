@@ -5,14 +5,22 @@ import jpholiday
 import datetime
 import calendar
 import io
+import requests
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
-from copy import deepcopy
 
 st.title("伊藤忠フォーマット変換アプリ")
 
-template_file = "雛形_伊藤忠.xlsx"
+# Google Drive から雛形ファイルをダウンロード
+TEMPLATE_URL = "https://drive.google.com/uc?export=download&id=1qbej2PjuZavlUKxRdbQe1F1QoHnshkPb"
+
+@st.cache_data(show_spinner=False)
+def load_template_workbook():
+    response = requests.get(TEMPLATE_URL)
+    response.raise_for_status()
+    in_memory_file = io.BytesIO(response.content)
+    return load_workbook(in_memory_file)
 
 # セッションステートでアップロードファイルを管理
 if "uploaded_files" not in st.session_state:
@@ -28,7 +36,6 @@ uploaded = st.file_uploader(
 # 新規アップロードファイルをセッションステートに追加（重複なし）
 if uploaded:
     for f in uploaded:
-        # fはUploadedFileオブジェクト。比較のため名前とサイズ両方で判定するとより安全
         exists = any((f.name == uf.name and f.size == uf.size) for uf in st.session_state.uploaded_files)
         if not exists:
             st.session_state.uploaded_files.append(f)
@@ -48,11 +55,9 @@ output_name = st.text_input("出力ファイル名（拡張子不要）", value=
 
 run_button = st.button("✅ 実行")
 
-# 曜日判定
 def is_holiday(date):
     return date.weekday() >= 5 or jpholiday.is_holiday(date)
 
-# 空の月別データ構造を作成（4月〜翌年3月）
 def init_monthly_data():
     return {
         'weekday': {month: [0]*48 for month in range(4, 16)},
@@ -61,7 +66,6 @@ def init_monthly_data():
         'holiday_days': {month: 0 for month in range(4, 16)}
     }
 
-# アップロードファイル読み込み関数
 def read_uploaded(file):
     if file.name.endswith('.csv'):
         df = pd.read_csv(file, header=4)
@@ -89,7 +93,7 @@ if run_button:
         monthly_data = init_monthly_data()
         latest_month_map = {}
 
-        wb = load_workbook(template_file)
+        wb = load_template_workbook()
         ws_template: Worksheet = wb["コマ単位集計雛形（送電端）"]
 
         for file in st.session_state.uploaded_files:
@@ -108,7 +112,6 @@ if run_button:
                 first_date = valid_dates.iloc[0]
                 month_key = first_date.month if first_date.month >= 4 else first_date.month + 12
 
-                # 月単位で最新のデータフレームだけを保持
                 if (month_key not in latest_month_map) or (first_date > latest_month_map[month_key]["date"]):
                     latest_month_map[month_key] = {
                         "df": df,
@@ -117,7 +120,6 @@ if run_button:
                         "date": first_date
                     }
 
-        # 月ごとに1件ずつ処理
         for m_key, info in latest_month_map.items():
             df = info["df"]
             file = info["file"]
@@ -135,7 +137,6 @@ if run_button:
                 month_index = mm if mm >= 4 else mm + 12
                 key = 'holiday' if is_holiday(date) else 'weekday'
 
-                # 日数カウントは1日1回のみ（重複排除）
                 date_str = date.strftime("%Y-%m-%d")
                 if date_str not in used_dates:
                     monthly_data[key + '_days'][month_index] += 1
@@ -149,7 +150,6 @@ if run_button:
                     if not pd.isnull(val):
                         monthly_data[key][month_index][i - 1] += val
 
-            # シート追加（元データ）
             df_with_header = pd.read_excel(file, sheet_name=sheet_name, header=None)
             output_sheet_name = info["date"].strftime("%Y%m")
             if output_sheet_name in wb.sheetnames:
@@ -158,7 +158,6 @@ if run_button:
             for r in df_with_header.itertuples(index=False):
                 ws_data.append(r)
 
-        # ✅ 平日データ → C〜N列（3〜14列） + C57〜N57に日数
         for m in range(4, 16):
             col_idx = m - 1  # C=3（4月）
             col_letter = get_column_letter(col_idx)
@@ -166,7 +165,6 @@ if run_button:
                 ws_template[f"{col_letter}{4+i}"] = monthly_data['weekday'][m][i]
             ws_template[f"{col_letter}57"] = monthly_data['weekday_days'][m]
 
-        # ✅ 休日データ → Q〜AB列（17〜28列） + Q57〜AB57に日数
         for m in range(4, 16):
             col_idx = 17 + (m - 4)  # Q=17（4月）
             col_letter = get_column_letter(col_idx)
